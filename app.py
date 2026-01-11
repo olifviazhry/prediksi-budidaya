@@ -37,6 +37,19 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
 
+    df.columns = df.columns.str.strip().str.lower()
+
+kolom_wajib = [
+    "jumlah_komoditas",
+    "pelaku_budidayaya",
+    "luas_lahan",
+    "jumlah_benih",
+    "kecamatan"
+]
+
+if not all(col in df.columns for col in kolom_wajib):
+    st.error("❌ Format file Excel tidak sesuai")
+    st.stop()
     st.write("📄 Data yang diupload:")
     st.dataframe(df)
 
@@ -148,3 +161,4 @@ if submit:
 
 
     st.pyplot(fig)
+
