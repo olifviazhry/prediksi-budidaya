@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import joblib
 import matplotlib.pyplot as plt
+import pandas as pd
 
 # =========================
 # Konfigurasi halaman
@@ -27,7 +28,40 @@ model, scaler_X, scaler_y, le = load_artifacts()
 # =========================
 # Judul
 # =========================
-st.title("🌱 Dashboard Prediksi Produksi Budidaya")
+st.title("🎣🐟 Dashboard Prediksi Hasil Produksi Budidaya")
+st.subheader("📂 Prediksi dari File Excel")
+uploaded_file = st.file_uploader(
+    "Upload file Excel (.xlsx)",
+    type=["xlsx"]
+)
+if uploaded_file is not None:
+    df = pd.read_excel(uploaded_file)
+
+    st.write("📄 Data yang diupload:")
+    st.dataframe(df)
+
+    try:
+        df["kecamatan_encoded"] = le.transform(df["kecamatan"])
+
+        X = df[
+            ["jumlah_komoditas", "pelaku_budidaya", "luas_lahan", "jumlah_benih", "kecamatan_encoded"]
+        ]
+
+        X_scaled = scaler_X.transform(X)
+
+        y_scaled = model.predict(X_scaled)
+        y_pred = scaler_y.inverse_transform(
+            y_scaled.reshape(-1, 1)
+        ).flatten()
+
+        df["hasil_prediksi_kg"] = y_pred.astype(int)
+
+        st.success("✅ Prediksi dari file Excel berhasil")
+        st.dataframe(df)
+
+    except Exception as e:
+        st.error("❌ Format file Excel tidak sesuai")
+        
 st.write("Masukkan data berikut untuk memprediksi hasil produksi budidaya.")
 
 # =========================
@@ -111,5 +145,6 @@ if submit:
     ax.set_xlabel("Luas Lahan (Ha)")
     ax.set_ylabel("Produksi (kg)")
     ax.set_title("Tren Produksi Budidaya")
+
 
     st.pyplot(fig)
