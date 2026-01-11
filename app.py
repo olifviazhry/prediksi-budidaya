@@ -29,35 +29,56 @@ model, scaler_X, scaler_y, le = load_artifacts()
 # Judul
 # =========================
 st.title("🎣🐟 Dashboard Prediksi Hasil Produksi Budidaya")
+st.write(
+    "Sistem ini digunakan untuk memprediksi hasil produksi budidaya "
+    "berdasarkan jumlah komoditas, pelaku budidaya, luas lahan, jumlah benih, "
+    "dan wilayah kecamatan."
+)
+
+# =====================================================
+# PREDIKSI DARI FILE EXCEL
+# =====================================================
 st.subheader("📂 Prediksi dari File Excel")
+
 uploaded_file = st.file_uploader(
     "Upload file Excel (.xlsx)",
     type=["xlsx"]
 )
+
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
 
+    # Normalisasi nama kolom
     df.columns = df.columns.str.strip().str.lower()
 
-kolom_wajib = [
-    "jumlah_komoditas",
-    "pelaku_budidayaya",
-    "luas_lahan",
-    "jumlah_benih",
-    "kecamatan"
-]
+    kolom_wajib = [
+        "jumlah_komoditas",
+        "pelaku_budidaya",
+        "luas_lahan",
+        "jumlah_benih",
+        "kecamatan"
+    ]
 
-if not all(col in df.columns for col in kolom_wajib):
-    st.error("❌ Format file Excel tidak sesuai")
-    st.stop()
+    if not all(col in df.columns for col in kolom_wajib):
+        st.error("❌ Format file Excel tidak sesuai")
+        st.write("📄 Kolom yang terbaca:", list(df.columns))
+        st.stop()
+
     st.write("📄 Data yang diupload:")
     st.dataframe(df)
 
     try:
+        # Encode kecamatan
         df["kecamatan_encoded"] = le.transform(df["kecamatan"])
 
         X = df[
-            ["jumlah_komoditas", "pelaku_budidaya", "luas_lahan", "jumlah_benih", "kecamatan_encoded"]
+            [
+                "jumlah_komoditas",
+                "pelaku_budidaya",
+                "luas_lahan",
+                "jumlah_benih",
+                "kecamatan_encoded"
+            ]
         ]
 
         X_scaled = scaler_X.transform(X)
@@ -72,31 +93,45 @@ if not all(col in df.columns for col in kolom_wajib):
         st.success("✅ Prediksi dari file Excel berhasil")
         st.dataframe(df)
 
-    except Exception as e:
-        st.error("❌ Format file Excel tidak sesuai")
-        
-st.write("Masukkan data berikut untuk memprediksi hasil produksi budidaya.")
+    except ValueError:
+        st.error(
+            "❌ Terdapat kecamatan pada file Excel yang tidak dikenali oleh sistem"
+        )
 
-# =========================
-# Form Input
-# =========================
+st.divider()
+
+# =====================================================
+# INPUT MANUAL
+# =====================================================
+st.subheader("✍️ Prediksi Manual")
+
 with st.form("form_prediksi"):
     col1, col2 = st.columns(2)
 
     with col1:
-        jumlah_komoditas = st.number_input("Jumlah Komoditas", min_value=0, step=1)
-        pelaku_budidaya = st.number_input("Jumlah Pelaku Budidaya", min_value=0, step=1)
-        luas_lahan = st.number_input("Luas Lahan (Ha)", min_value=0.0, step=0.1)
+        jumlah_komoditas = st.number_input(
+            "Jumlah Komoditas", min_value=0, step=1
+        )
+        pelaku_budidaya = st.number_input(
+            "Jumlah Pelaku Budidaya", min_value=0, step=1
+        )
+        luas_lahan = st.number_input(
+            "Luas Lahan (Ha)", min_value=0.0, step=0.1
+        )
 
     with col2:
-        jumlah_benih = st.number_input("Jumlah Benih", min_value=0, step=1000)
-        kecamatan = st.selectbox("Nama Kecamatan", options=list(le.classes_))
+        jumlah_benih = st.number_input(
+            "Jumlah Benih", min_value=0, step=1000
+        )
+        kecamatan = st.selectbox(
+            "Nama Kecamatan", options=list(le.classes_)
+        )
 
     submit = st.form_submit_button("🔍 Prediksi")
 
-# =========================
-# Proses Prediksi
-# =========================
+# =====================================================
+# PROSES PREDIKSI MANUAL
+# =====================================================
 if submit:
     kecamatan_encoded = le.transform([kecamatan])[0]
 
@@ -114,9 +149,6 @@ if submit:
         y_pred_scaled.reshape(-1, 1)
     )[0][0]
 
-    # =========================
-    # Output Angka
-    # =========================
     st.success("✅ Prediksi berhasil")
     st.metric(
         "Hasil Prediksi Produksi",
@@ -159,6 +191,4 @@ if submit:
     ax.set_ylabel("Produksi (kg)")
     ax.set_title("Tren Produksi Budidaya")
 
-
     st.pyplot(fig)
-
