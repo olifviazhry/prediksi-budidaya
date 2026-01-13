@@ -38,6 +38,7 @@ st.write(
 # =====================================================
 # PREDIKSI DARI FILE EXCEL
 # =====================================================
+
 st.subheader("📂 Prediksi dari File Excel")
 
 uploaded_file = st.file_uploader(
@@ -48,7 +49,7 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
 
-    # Normalisasi nama kolom
+    # Normalisasi kolom
     df.columns = df.columns.str.strip().str.lower()
 
     kolom_wajib = [
@@ -59,54 +60,85 @@ if uploaded_file is not None:
         "kecamatan"
     ]
 
-    if not all(col in df.columns for col in kolom_wajib):
-        st.error("❌ Format file Excel tidak sesuai")
-        st.write("📄 Kolom yang terbaca:", list(df.columns))
+    # =========================
+    # 1️⃣ VALIDASI KOLOM
+    # =========================
+    kolom_hilang = set(kolom_wajib) - set(df.columns)
+    if kolom_hilang:
+        st.error("❌ Kolom wajib tidak ditemukan:")
+        st.write(kolom_hilang)
         st.stop()
 
     st.write("📄 Data yang diupload:")
     st.dataframe(df)
 
-    try:
-        # Encode kecamatan
-        df["kecamatan_encoded"] = le.transform(df["kecamatan"])
+    # =========================
+    # 2️⃣ VALIDASI KECAMATAN
+    # =========================
+    df["kecamatan"] = df["kecamatan"].astype(str).str.strip()
 
-        X = df[
-            [
-                "jumlah_komoditas",
-                "pelaku_budidaya",
-                "luas_lahan",
-                "jumlah_benih",
-                "kecamatan_encoded"
-            ]
+    kec_excel = set(df["kecamatan"].unique())
+    kec_model = set(le.classes_)
+
+    kec_tidak_dikenali = kec_excel - kec_model
+
+    if kec_tidak_dikenali:
+        st.error("❌ Kecamatan tidak dikenali oleh sistem")
+        st.write("Kecamatan bermasalah:")
+        st.write(kec_tidak_dikenali)
+        st.stop()
+
+    # =========================
+    # 3️⃣ VALIDASI DATA NUMERIK
+    # =========================
+    kolom_numerik = [
+        "jumlah_komoditas",
+        "pelaku_budidaya",
+        "luas_lahan",
+        "jumlah_benih"
+    ]
+
+    for col in kolom_numerik:
+        if df[col].isnull().any():
+            st.error(f"❌ Terdapat nilai kosong (NaN) pada kolom: {col}")
+            st.stop()
+
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            st.error(f"❌ Kolom {col} harus berupa angka")
+            st.stop()
+
+    # =========================
+    # 4️⃣ ENCODING + PREDIKSI
+    # =========================
+    df["kecamatan_encoded"] = le.transform(df["kecamatan"])
+
+    X = df[
+        [
+            "jumlah_komoditas",
+            "pelaku_budidaya",
+            "luas_lahan",
+            "jumlah_benih",
+            "kecamatan_encoded"
         ]
+    ].astype(float)
 
+    try:
         X_scaled = scaler_X.transform(X)
-
         y_scaled = model.predict(X_scaled)
         y_pred = scaler_y.inverse_transform(
             y_scaled.reshape(-1, 1)
         ).flatten()
 
-        df["hasil_prediksi_kg"] = y_pred.astype(int)
+    except Exception as e:
+        st.error("❌ Terjadi kesalahan saat proses prediksi")
+        st.code(str(e))
+        st.stop()
 
-        st.success("✅ Prediksi dari file Excel berhasil")
-        st.dataframe(df)
+    df["hasil_prediksi_kg"] = y_pred.astype(int)
 
-    except ValueError:
-        st.error(
-            "❌ Terdapat kecamatan pada file Excel yang tidak dikenali oleh sistem"
-        )
-
-        # 🔍 DEBUG KECAMATAN
-        kecamatan_excel = set(df["kecamatan"].unique())
-        kecamatan_model = set(le.classes_)
-
-        st.write("❌ Kecamatan tidak dikenali:")
-        st.write(kecamatan_excel - kecamatan_model)
-
-st.divider()
-
+    st.success("✅ Prediksi dari file Excel berhasil")
+    st.dataframe(df)
+    
 # =====================================================
 # INPUT MANUAL
 # =====================================================
@@ -199,3 +231,4 @@ if submit:
     ax.set_title("Tren Produksi Budidaya")
 
     st.pyplot(fig)
+
