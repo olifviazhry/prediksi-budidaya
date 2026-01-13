@@ -97,6 +97,11 @@ if uploaded_file is not None:
         st.error(
             "❌ Terdapat kecamatan pada file Excel yang tidak dikenali oleh sistem"
         )
+kecamatan_excel = set(df["kecamatan"].unique())
+kecamatan_model = set(le.classes_)
+
+st.write("❌ Kecamatan tidak dikenali:")
+st.write(kecamatan_excel - kecamatan_model)
 
 st.divider()
 
@@ -192,3 +197,4 @@ if submit:
     ax.set_title("Tren Produksi Budidaya")
 
     st.pyplot(fig)
+
