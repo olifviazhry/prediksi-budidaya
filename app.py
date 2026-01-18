@@ -57,7 +57,7 @@ if uploaded_file is not None:
         "pelaku_budidaya",
         "luas_lahan",
         "jumlah_benih",
-        "kecamatan"
+        "kode_kec"
     ]
 
     # =========================
@@ -75,7 +75,7 @@ if uploaded_file is not None:
     # =========================
     # 2️⃣ VALIDASI KECAMATAN
     # =========================
-    df["kecamatan"] = df["kecamatan"].astype(str).str.strip()
+    df["kode_kec"] = df["kecamatan"].astype(str).str.strip()
 
     kec_excel = set(df["kecamatan"].unique())
     kec_model = set(le.classes_)
@@ -110,7 +110,7 @@ if uploaded_file is not None:
     # =========================
     # 4️⃣ ENCODING + PREDIKSI
     # =========================
-    df["kecamatan_encoded"] = le.transform(df["kecamatan"])
+    df["kode_kec"] = le.transform(df["kecamatan"])
 
     X = df[
         [
@@ -118,7 +118,7 @@ if uploaded_file is not None:
             "pelaku_budidaya",
             "luas_lahan",
             "jumlah_benih",
-            "kecamatan_encoded"
+            "kode_kec"
         ]
     ].astype(float)
 
@@ -172,14 +172,14 @@ with st.form("form_prediksi"):
 # PROSES PREDIKSI MANUAL
 # =====================================================
 if submit:
-    kecamatan_encoded = le.transform([kecamatan])[0]
+    kode_kec = le.transform([kecamatan])[0]
 
     X_new = np.array([[
         jumlah_komoditas,
         pelaku_budidaya,
         luas_lahan,
         jumlah_benih,
-        kecamatan_encoded
+        kode_kec
     ]])
 
     X_new_scaled = scaler_X.transform(X_new)
@@ -213,7 +213,7 @@ if submit:
             pelaku_budidaya,
             ll,
             jumlah_benih,
-            kecamatan_encoded
+            kode_kec
         ]])
 
         X_temp_scaled = scaler_X.transform(X_temp)
@@ -231,4 +231,5 @@ if submit:
     ax.set_title("Tren Produksi Budidaya")
 
     st.pyplot(fig)
+
 
