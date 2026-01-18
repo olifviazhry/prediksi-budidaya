@@ -8,7 +8,7 @@ import pickle
 # =========================
 # LOAD MODEL & TOOLS
 # =========================
-with open("model.pkl", "rb") as f:
+with open("model_regresi_linear.pkl", "rb") as f:
     model = pickle.load(f)
 
 with open("scaler_X.pkl", "rb") as f:
@@ -149,6 +149,7 @@ if uploaded_file is not None:
             file_name=output_file,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
