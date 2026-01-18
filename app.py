@@ -3,42 +3,32 @@ import numpy as np
 import joblib
 import matplotlib.pyplot as plt
 import pandas as pd
+import pickle
 
 # =========================
-# Konfigurasi halaman
+# LOAD MODEL & TOOLS
 # =========================
-st.set_page_config(
-    page_title="Prediksi Produksi Budidaya",
-    layout="centered"
-)
+with open("model.pkl", "rb") as f:
+    model = pickle.load(f)
+
+with open("scaler_X.pkl", "rb") as f:
+    scaler_X = pickle.load(f)
+
+with open("scaler_y.pkl", "rb") as f:
+    scaler_y = pickle.load(f)
+
+with open("label_encoder_kecamatan.pkl", "rb") as f:
+    le = pickle.load(f)
 
 # =========================
-# Load model & scaler
+# JUDUL APLIKASI
 # =========================
-@st.cache_resource
-def load_artifacts():
-    model = joblib.load("model_regresi_linear.pkl")
-    scaler_X = joblib.load("scaler_X.pkl")
-    scaler_y = joblib.load("scaler_y.pkl")
-    le = joblib.load("label_encoder_kecamatan.pkl")
-    return model, scaler_X, scaler_y, le
-
-model, scaler_X, scaler_y, le = load_artifacts()
+st.title("📊 Prediksi Produksi Perikanan")
+st.write("Input data menggunakan **nama kecamatan**, sistem akan mengonversi otomatis.")
 
 # =========================
-# Judul
+# UPLOAD FILE EXCEL
 # =========================
-st.title("🎣🐟 Dashboard Prediksi Hasil Produksi Budidaya")
-st.write(
-    "Sistem ini digunakan untuk memprediksi hasil produksi budidaya "
-    "berdasarkan jumlah komoditas, pelaku budidaya, luas lahan, jumlah benih, "
-    "dan wilayah kecamatan."
-)
-
-# =====================================================
-# PREDIKSI DARI FILE EXCEL
-# =====================================================
-
 st.subheader("📂 Prediksi dari File Excel")
 
 uploaded_file = st.file_uploader(
@@ -49,7 +39,9 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
 
-    # Normalisasi kolom
+    # -------------------------
+    # NORMALISASI NAMA KOLOM
+    # -------------------------
     df.columns = df.columns.str.strip().str.lower()
 
     kolom_wajib = [
@@ -57,12 +49,12 @@ if uploaded_file is not None:
         "pelaku_budidaya",
         "luas_lahan",
         "jumlah_benih",
-        "kode_kec"
+        "kecamatan"
     ]
 
-    # =========================
-    # 1️⃣ VALIDASI KOLOM
-    # =========================
+    # -------------------------
+    # VALIDASI KOLOM
+    # -------------------------
     kolom_hilang = set(kolom_wajib) - set(df.columns)
     if kolom_hilang:
         st.error("❌ Kolom wajib tidak ditemukan:")
@@ -72,11 +64,19 @@ if uploaded_file is not None:
     st.write("📄 Data yang diupload:")
     st.dataframe(df)
 
-    # =========================
-    # 2️⃣ VALIDASI KECAMATAN
-    # =========================
-    df["kode_kec"] = df["kecamatan"].astype(str).str.strip()
+    # -------------------------
+    # NORMALISASI KECAMATAN
+    # -------------------------
+    df["kecamatan"] = (
+        df["kecamatan"]
+        .astype(str)
+        .str.strip()
+        .str.title()
+    )
 
+    # -------------------------
+    # VALIDASI KECAMATAN
+    # -------------------------
     kec_excel = set(df["kecamatan"].unique())
     kec_model = set(le.classes_)
 
@@ -88,9 +88,14 @@ if uploaded_file is not None:
         st.write(kec_tidak_dikenali)
         st.stop()
 
-    # =========================
-    # 3️⃣ VALIDASI DATA NUMERIK
-    # =========================
+    # -------------------------
+    # ENCODING KECAMATAN
+    # -------------------------
+    df["kode_kec"] = le.transform(df["kecamatan"])
+
+    # -------------------------
+    # VALIDASI DATA NUMERIK
+    # -------------------------
     kolom_numerik = [
         "jumlah_komoditas",
         "pelaku_budidaya",
@@ -99,19 +104,14 @@ if uploaded_file is not None:
     ]
 
     for col in kolom_numerik:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
         if df[col].isnull().any():
-            st.error(f"❌ Terdapat nilai kosong (NaN) pada kolom: {col}")
+            st.error(f"❌ Kolom {col} harus berupa angka dan tidak boleh kosong")
             st.stop()
 
-        if not pd.api.types.is_numeric_dtype(df[col]):
-            st.error(f"❌ Kolom {col} harus berupa angka")
-            st.stop()
-
-    # =========================
-    # 4️⃣ ENCODING + PREDIKSI
-    # =========================
-    df["kode_kec"] = le.transform(df["kecamatan"])
-
+    # -------------------------
+    # PREDIKSI
+    # -------------------------
     X = df[
         [
             "jumlah_komoditas",
@@ -120,116 +120,35 @@ if uploaded_file is not None:
             "jumlah_benih",
             "kode_kec"
         ]
-    ].astype(float)
+    ]
 
-    try:
-        X_scaled = scaler_X.transform(X)
-        y_scaled = model.predict(X_scaled)
-        y_pred = scaler_y.inverse_transform(
-            y_scaled.reshape(-1, 1)
-        ).flatten()
-
-    except Exception as e:
-        st.error("❌ Terjadi kesalahan saat proses prediksi")
-        st.code(str(e))
-        st.stop()
+    X_scaled = scaler_X.transform(X)
+    y_scaled = model.predict(X_scaled)
+    y_pred = scaler_y.inverse_transform(
+        y_scaled.reshape(-1, 1)
+    ).flatten()
 
     df["hasil_prediksi_kg"] = y_pred.astype(int)
 
-    st.success("✅ Prediksi dari file Excel berhasil")
+    # -------------------------
+    # OUTPUT
+    # -------------------------
+    st.success("✅ Prediksi berhasil dilakukan")
     st.dataframe(df)
-    
-# =====================================================
-# INPUT MANUAL
-# =====================================================
-st.subheader("✍️ Prediksi Manual")
 
-with st.form("form_prediksi"):
-    col1, col2 = st.columns(2)
+    # -------------------------
+    # DOWNLOAD HASIL
+    # -------------------------
+    output_file = "hasil_prediksi.xlsx"
+    df.to_excel(output_file, index=False)
 
-    with col1:
-        jumlah_komoditas = st.number_input(
-            "Jumlah Komoditas", min_value=0, step=1
-        )
-        pelaku_budidaya = st.number_input(
-            "Jumlah Pelaku Budidaya", min_value=0, step=1
-        )
-        luas_lahan = st.number_input(
-            "Luas Lahan (Ha)", min_value=0.0, step=0.1
+    with open(output_file, "rb") as f:
+        st.download_button(
+            "⬇️ Download Hasil Prediksi",
+            f,
+            file_name=output_file,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-    with col2:
-        jumlah_benih = st.number_input(
-            "Jumlah Benih", min_value=0, step=1000
-        )
-        kecamatan = st.selectbox(
-            "Nama Kecamatan", options=list(le.classes_)
-        )
-
-    submit = st.form_submit_button("🔍 Prediksi")
-
-# =====================================================
-# PROSES PREDIKSI MANUAL
-# =====================================================
-if submit:
-    kode_kec = le.transform([kecamatan])[0]
-
-    X_new = np.array([[
-        jumlah_komoditas,
-        pelaku_budidaya,
-        luas_lahan,
-        jumlah_benih,
-        kode_kec
-    ]])
-
-    X_new_scaled = scaler_X.transform(X_new)
-    y_pred_scaled = model.predict(X_new_scaled)
-    y_pred_actual = scaler_y.inverse_transform(
-        y_pred_scaled.reshape(-1, 1)
-    )[0][0]
-
-    st.success("✅ Prediksi berhasil")
-    st.metric(
-        "Hasil Prediksi Produksi",
-        f"{int(y_pred_actual):,} kg"
-    )
-
-    # =========================
-    # Grafik Tren Produksi
-    # =========================
-    st.subheader("📈 Tren Produksi terhadap Luas Lahan")
-
-    luas_range = np.linspace(
-        max(1, luas_lahan * 0.5),
-        luas_lahan * 1.5,
-        10
-    )
-
-    hasil = []
-
-    for ll in luas_range:
-        X_temp = np.array([[
-            jumlah_komoditas,
-            pelaku_budidaya,
-            ll,
-            jumlah_benih,
-            kode_kec
-        ]])
-
-        X_temp_scaled = scaler_X.transform(X_temp)
-        y_temp_scaled = model.predict(X_temp_scaled)
-        y_temp_actual = scaler_y.inverse_transform(
-            y_temp_scaled.reshape(-1, 1)
-        )[0][0]
-
-        hasil.append(y_temp_actual)
-
-    fig, ax = plt.subplots()
-    ax.plot(luas_range, hasil, marker="o")
-    ax.set_xlabel("Luas Lahan (Ha)")
-    ax.set_ylabel("Produksi (kg)")
-    ax.set_title("Tren Produksi Budidaya")
-
-    st.pyplot(fig)
 
 
